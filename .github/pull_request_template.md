@@ -1,7 +1,9 @@
 # Description
 
+<!--
 - Provide a concise description of the changes made in this PR.
 - Mention any relevant context or background for better understanding.
+-->
 
 ## Type of Change
 
@@ -11,11 +13,13 @@
 - [ ] Documentation update
 - [ ] Other (please specify):
 
+<!--
 ## Related Issue(s)
 
 - Closes # [ISSUE_NUMBER]
 - Fixes # [ISSUE_NUMBER]
 - Related to # [ISSUE_NUMBER]
+-->
 
 ## Testing
 
@@ -36,10 +40,12 @@
 - [ ] Documentation has been added or updated to reflect this change.
 - [ ] No documentation update is required.
 
+<!--
 ## Deployment Notes
 
 - Describe any special deployment requirements, such as database migrations, environment variable updates, etc.
 - **Example**: Run `migration script x` after deploying.
+-->
 
 ## Checklist
 
@@ -49,11 +55,15 @@
 - [ ] All new and existing tests passed.
 - [ ] Any dependent changes have been merged and published in downstream modules.
 
+<!--
 ## Screenshots (if applicable)
 
-<!-- Add screenshots to illustrate the changes. -->
+Add screenshots to illustrate the changes.
+-->
 
+<!--
 ## Additional Notes
 
 - Include any other comments or information that reviewers should be aware of.
 - Mention any potential issues or areas to pay special attention to during the review.
+-->
