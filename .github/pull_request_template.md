@@ -67,3 +67,15 @@ Add screenshots to illustrate the changes.
 - Include any other comments or information that reviewers should be aware of.
 - Mention any potential issues or areas to pay special attention to during the review.
 -->
+
+---
+
+<details>
+<summary>μtopia commands and options</summary>
+<br />
+
+You can trigger μtopia actions by commenting on this PR:
+
+- `@utopia review` will trigger an AI code review for this PR.
+
+</details>
