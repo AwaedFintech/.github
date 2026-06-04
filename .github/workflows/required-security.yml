@@ -41,24 +41,41 @@ jobs:
           PUSH_AFTER: ${{ github.sha }}
         run: |
           # Scan ONLY commits introduced by this event — never full history.
-          # PR: base..head    Push: before..after
+          # PR: base..head     Push: before..after     branch-create / workflow_call / unknown: working-tree only
           # Historical secrets are NOT this gate's concern (separate report-only scan handles that).
-          if [ "$EVENT_NAME" = "pull_request" ]; then
+          ZERO_SHA="0000000000000000000000000000000000000000"
+          RANGE=""
+          if [ "$EVENT_NAME" = "pull_request" ] && [ -n "$PR_BASE_SHA" ] && [ -n "$PR_HEAD_SHA" ]; then
             RANGE="${PR_BASE_SHA}..${PR_HEAD_SHA}"
-          else
+          elif [ "$EVENT_NAME" = "push" ] && [ -n "$PUSH_BEFORE" ] && [ "$PUSH_BEFORE" != "$ZERO_SHA" ]; then
             RANGE="${PUSH_BEFORE}..${PUSH_AFTER}"
           fi
-          echo "Scanning commit range: $RANGE"
-          docker run --rm -v "$PWD:/repo" -w /repo \
-            zricethezav/gitleaks:v8.30.1 \
-            detect \
-              --source=/repo \
-              --log-opts="$RANGE" \
-              --redact \
-              --exit-code=1 \
-              --verbose \
-              --report-format=sarif \
-              --report-path=/repo/gitleaks.sarif
+
+          if [ -z "$RANGE" ]; then
+            echo "No diff range (event=$EVENT_NAME, before=$PUSH_BEFORE) — scanning working tree only"
+            docker run --rm -v "$PWD:/repo" -w /repo \
+              zricethezav/gitleaks:v8.30.1 \
+              detect \
+                --no-git \
+                --source=/repo \
+                --redact \
+                --exit-code=1 \
+                --verbose \
+                --report-format=sarif \
+                --report-path=/repo/gitleaks.sarif
+          else
+            echo "Scanning commit range: $RANGE"
+            docker run --rm -v "$PWD:/repo" -w /repo \
+              zricethezav/gitleaks:v8.30.1 \
+              detect \
+                --source=/repo \
+                --log-opts="$RANGE" \
+                --redact \
+                --exit-code=1 \
+                --verbose \
+                --report-format=sarif \
+                --report-path=/repo/gitleaks.sarif
+          fi
       - name: Upload SARIF
         if: always() && hashFiles('gitleaks.sarif') != ''
         continue-on-error: true   # SARIF upload is best-effort; no-op on private repos without GHAS
@@ -100,6 +117,7 @@ jobs:
       security-events: write
     uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@v2.2.4
     with:
+      upload-sarif: false   # gate-reliable: non-GHAS private repos can't fail this required check on SARIF upload
       scan-args: |-
         -r
         ./
