@@ -50,7 +50,7 @@ jobs:
           fi
           echo "Scanning commit range: $RANGE"
           docker run --rm -v "$PWD:/repo" -w /repo \
-            zricethezav/gitleaks:latest \
+            zricethezav/gitleaks:v8.30.1 \
             detect \
               --source=/repo \
               --log-opts="$RANGE" \
@@ -61,6 +61,7 @@ jobs:
               --report-path=/repo/gitleaks.sarif
       - name: Upload SARIF
         if: always() && hashFiles('gitleaks.sarif') != ''
+        continue-on-error: true   # SARIF upload is best-effort; no-op on private repos without GHAS
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: gitleaks.sarif
@@ -85,6 +86,7 @@ jobs:
           scanners: vuln,secret,misconfig
       - name: Upload SARIF
         if: always() && hashFiles('trivy.sarif') != ''
+        continue-on-error: true   # SARIF upload is best-effort; no-op on private repos without GHAS
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: trivy.sarif
