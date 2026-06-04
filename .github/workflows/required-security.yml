@@ -77,11 +77,11 @@ jobs:
   osv-scanner:
     name: osv-scanner
     permissions:
+      actions: read           # required by the reusable workflow at v2.2.4
       contents: read
       security-events: write
     uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@v2.2.4
     with:
       scan-args: |-
-        --recursive
-        --skip-git
+        -r
         ./
