@@ -1,0 +1,87 @@
+# Required security scans for AwaedFintech repos.
+#
+# Lives in AwaedFintech/.github and is enforced org-wide via the
+# "workflows" rule in ruleset 9871096. Status check names (= job names)
+# referenced by the ruleset: gitleaks, trivy, osv-scanner.
+#
+# All tooling is free OSS (MIT / Apache-2.0). No GHAS, no paid actions.
+
+name: Required Security Scans
+
+on:
+  pull_request: {}    # any PR, any target branch — ruleset decides where it's enforced
+  push:
+    branches: [main, develop, staging, test]
+  workflow_call: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  security-events: write
+  pull-requests: read
+
+jobs:
+  gitleaks:
+    name: gitleaks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Gitleaks scan (OSS binary, MIT)
+        run: |
+          docker run --rm -v "$PWD:/repo" -w /repo \
+            zricethezav/gitleaks:latest \
+            detect \
+              --source=/repo \
+              --redact \
+              --exit-code=1 \
+              --verbose \
+              --report-format=sarif \
+              --report-path=/repo/gitleaks.sarif
+      - name: Upload SARIF
+        if: always() && hashFiles('gitleaks.sarif') != ''
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: gitleaks.sarif
+          category: gitleaks
+
+  trivy:
+    name: trivy
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Trivy filesystem scan (SCA + IaC + secrets)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          format: sarif
+          output: trivy.sarif
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
+          scanners: vuln,secret,misconfig
+      - name: Upload SARIF
+        if: always() && hashFiles('trivy.sarif') != ''
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy.sarif
+          category: trivy
+
+  osv-scanner:
+    name: osv-scanner
+    permissions:
+      contents: read
+      security-events: write
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@v2.2.4
+    with:
+      scan-args: |-
+        --recursive
+        --skip-git
+        ./
