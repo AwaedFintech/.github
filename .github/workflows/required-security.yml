@@ -31,13 +31,29 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
-      - name: Gitleaks scan (OSS binary, MIT)
+          fetch-depth: 0   # need base/before SHA reachable for the log range
+      - name: Gitleaks scan (new commits only, OSS binary, MIT)
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          PUSH_AFTER: ${{ github.sha }}
         run: |
+          # Scan ONLY commits introduced by this event — never full history.
+          # PR: base..head    Push: before..after
+          # Historical secrets are NOT this gate's concern (separate report-only scan handles that).
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            RANGE="${PR_BASE_SHA}..${PR_HEAD_SHA}"
+          else
+            RANGE="${PUSH_BEFORE}..${PUSH_AFTER}"
+          fi
+          echo "Scanning commit range: $RANGE"
           docker run --rm -v "$PWD:/repo" -w /repo \
             zricethezav/gitleaks:latest \
             detect \
               --source=/repo \
+              --log-opts="$RANGE" \
               --redact \
               --exit-code=1 \
               --verbose \
