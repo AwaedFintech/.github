@@ -4,7 +4,16 @@
 # "workflows" rule in ruleset 9871096. Status check names (= job names)
 # referenced by the ruleset: gitleaks, trivy, osv-scanner.
 #
+# WARNING: the job names below (gitleaks / trivy / osv-scanner) are
+# referenced verbatim by ruleset 9871096 as required status checks.
+# Renaming a job here silently disables the org-wide merge gate — keep
+# the ruleset's required_status_checks list in sync with any change.
+#
 # All tooling is free OSS (MIT / Apache-2.0). No GHAS, no paid actions.
+#
+# Pinning policy: third-party refs are pinned to immutable commit SHAs
+# (or image digests). actions/* and github/codeql-action/* stay on
+# floating major tags — publisher is GitHub itself, low retargeting risk.
 
 name: Required Security Scans
 
@@ -54,7 +63,7 @@ jobs:
           if [ -z "$RANGE" ]; then
             echo "No diff range (event=$EVENT_NAME, before=$PUSH_BEFORE) — scanning working tree only"
             docker run --rm -v "$PWD:/repo" -w /repo \
-              zricethezav/gitleaks:v8.30.1 \
+              zricethezav/gitleaks:v8.30.1@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f \
               detect \
                 --no-git \
                 --source=/repo \
@@ -66,7 +75,7 @@ jobs:
           else
             echo "Scanning commit range: $RANGE"
             docker run --rm -v "$PWD:/repo" -w /repo \
-              zricethezav/gitleaks:v8.30.1 \
+              zricethezav/gitleaks:v8.30.1@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f \
               detect \
                 --source=/repo \
                 --log-opts="$RANGE" \
@@ -91,7 +100,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Trivy filesystem scan (SCA + IaC + secrets)
-        uses: aquasecurity/trivy-action@v0.36.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: fs
           scan-ref: .
@@ -115,7 +124,7 @@ jobs:
       actions: read           # required by the reusable workflow at v2.2.4
       contents: read
       security-events: write
-    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@v2.2.4
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@9bb69575e74019c2ad085a1860787043adf47ccb # v2.2.4
     with:
       upload-sarif: false   # gate-reliable: non-GHAS private repos can't fail this required check on SARIF upload
       scan-args: |-
