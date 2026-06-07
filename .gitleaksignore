@@ -1,0 +1,15 @@
+# gitleaks allowlist — one fingerprint per line.
+#
+# Fingerprint format depends on scan mode:
+#   git mode (default, scans commit range):
+#     <commit-sha>:<file-path>:<rule-id>:<line-number>
+#   no-git mode (working-tree scan, used by CI on branch creation /
+#                workflow_call when no diff range is available):
+#     <file-path>:<rule-id>:<line-number>     (no commit SHA prefix)
+#
+# Generate by running gitleaks locally; copy the fingerprint verbatim
+# from the offending finding in the gitleaks output / SARIF report.
+#
+# Examples (uncomment and replace with real findings):
+# a1b2c3d4e5f6...:src/config/test-fixtures.ts:generic-api-key:42
+# src/config/test-fixtures.ts:generic-api-key:42

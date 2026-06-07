@@ -1,0 +1,132 @@
+# Required security scans for AwaedFintech repos.
+#
+# Lives in AwaedFintech/.github and is enforced org-wide via the
+# "workflows" rule in ruleset 9871096. Status check names (= job names)
+# referenced by the ruleset: gitleaks, trivy, osv-scanner.
+#
+# WARNING: the job names below (gitleaks / trivy / osv-scanner) are
+# referenced verbatim by ruleset 9871096 as required status checks.
+# Renaming a job here silently disables the org-wide merge gate — keep
+# the ruleset's required_status_checks list in sync with any change.
+#
+# All tooling is free OSS (MIT / Apache-2.0). No GHAS, no paid actions.
+#
+# Pinning policy: third-party refs are pinned to immutable commit SHAs
+# (or image digests). actions/* and github/codeql-action/* stay on
+# floating major tags — publisher is GitHub itself, low retargeting risk.
+
+name: Required Security Scans
+
+on:
+  pull_request: {}    # any PR, any target branch — ruleset decides where it's enforced
+  push:
+    branches: [main, develop, staging, test]
+  workflow_call: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  security-events: write
+  pull-requests: read
+
+jobs:
+  gitleaks:
+    name: gitleaks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # need base/before SHA reachable for the log range
+      - name: Gitleaks scan (new commits only, OSS binary, MIT)
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          PUSH_AFTER: ${{ github.sha }}
+        run: |
+          # Scan ONLY commits introduced by this event — never full history.
+          # PR: base..head     Push: before..after     branch-create / workflow_call / unknown: working-tree only
+          # Historical secrets are NOT this gate's concern (separate report-only scan handles that).
+          ZERO_SHA="0000000000000000000000000000000000000000"
+          RANGE=""
+          if [ "$EVENT_NAME" = "pull_request" ] && [ -n "$PR_BASE_SHA" ] && [ -n "$PR_HEAD_SHA" ]; then
+            RANGE="${PR_BASE_SHA}..${PR_HEAD_SHA}"
+          elif [ "$EVENT_NAME" = "push" ] && [ -n "$PUSH_BEFORE" ] && [ "$PUSH_BEFORE" != "$ZERO_SHA" ]; then
+            RANGE="${PUSH_BEFORE}..${PUSH_AFTER}"
+          fi
+
+          if [ -z "$RANGE" ]; then
+            echo "No diff range (event=$EVENT_NAME, before=$PUSH_BEFORE) — scanning working tree only"
+            docker run --rm -v "$PWD:/repo" -w /repo \
+              zricethezav/gitleaks:v8.30.1@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f \
+              detect \
+                --no-git \
+                --source=/repo \
+                --redact \
+                --exit-code=1 \
+                --verbose \
+                --report-format=sarif \
+                --report-path=/repo/gitleaks.sarif
+          else
+            echo "Scanning commit range: $RANGE"
+            docker run --rm -v "$PWD:/repo" -w /repo \
+              zricethezav/gitleaks:v8.30.1@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f \
+              detect \
+                --source=/repo \
+                --log-opts="$RANGE" \
+                --redact \
+                --exit-code=1 \
+                --verbose \
+                --report-format=sarif \
+                --report-path=/repo/gitleaks.sarif
+          fi
+      - name: Upload SARIF
+        if: always() && hashFiles('gitleaks.sarif') != ''
+        continue-on-error: true   # SARIF upload is best-effort; no-op on private repos without GHAS
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: gitleaks.sarif
+          category: gitleaks
+
+  trivy:
+    name: trivy
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Trivy filesystem scan (SCA + IaC + secrets)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          format: sarif
+          output: trivy.sarif
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
+          scanners: vuln,secret,misconfig
+      - name: Upload SARIF
+        if: always() && hashFiles('trivy.sarif') != ''
+        continue-on-error: true   # SARIF upload is best-effort; no-op on private repos without GHAS
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy.sarif
+          category: trivy
+
+  osv-scanner:
+    name: osv-scanner
+    permissions:
+      actions: read           # required by the reusable workflow at v2.2.4
+      contents: read
+      security-events: write
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@9bb69575e74019c2ad085a1860787043adf47ccb # v2.2.4
+    with:
+      upload-sarif: false   # gate-reliable: non-GHAS private repos can't fail this required check on SARIF upload
+      scan-args: |-
+        -r
+        ./

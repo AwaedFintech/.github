@@ -1,0 +1,6 @@
+# trivy ignore list — one CVE or misconfig ID per line.
+# Add an expiry comment so we revisit; trivy itself does not enforce expiry.
+#
+# Examples (uncomment and replace with real findings):
+# CVE-2024-12345    # expires 2026-09-01, upstream fix pending
+# AVD-DS-0002       # Dockerfile user — accepted, image runs in restricted runtime
