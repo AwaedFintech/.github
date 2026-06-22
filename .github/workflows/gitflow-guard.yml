@@ -1,0 +1,14 @@
+name: GitFlow Guard
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+
+permissions:
+  contents: read
+
+jobs:
+  validate-merge-direction:        # keep this exact job id
+    uses: AwaedFintech/devops/.github/workflows/gitflow-guard.yml@master
+    with:
+      head_ref: ${{ github.head_ref }}
+      base_ref: ${{ github.base_ref }}
